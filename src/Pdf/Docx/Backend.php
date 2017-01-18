@@ -11,56 +11,74 @@
 // -----------------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////
 
+use Gears\Pdf\Contracts\DocxConverter;
 use ZipArchive;
 use RuntimeException;
 use Gears\String as Str;
 use Gears\Di\Container;
 use Gears\Pdf\TempFile;
-use Gears\Pdf\Docx\SimpleXMLElement;
 use Gears\Pdf\Docx\Converter\LibreOffice;
 use Gears\Pdf\Contracts\Backend as BackendInterface;
 
 class Backend extends Container implements BackendInterface
 {
-	/**
-	 * @var Gears\Pdf\TempFile DOCX document to use as the template for our PDF.
-	 *                         Set as the first argument of the constructor of
-	 *                         this class.
+    /**
+     * DOCX document to use as the template for our PDF.
+     * Set as the first argument of the constructor of this class.
+     *
+	 * @var TempFile
 	 */
 	protected $template;
 
 	/**
 	 * This is where store the main ```word/document.xml``` of the docx file.
 	 * It will be an instance of ```SimpleXMLElement```.
+     *
+     * @var SimpleXMLElement
 	 */
 	protected $documentXML;
 
 	/**
 	 * This is where store any header xml. ie: ```word/header1.xml```.
 	 * It will contains instances of ```SimpleXMLElement```.
+     *
+     * @var SimpleXMLElement
 	 */
 	protected $headerXMLs = [];
 
 	/**
 	 * This is where store any footer xml. ie: ```word/footer1.xml```.
 	 * It will contains instances of ```SimpleXMLElement```.
+     *
+     * @var SimpleXMLElement
 	 */
 	protected $footerXMLs = [];
 
 	/**
 	 * An instance of ```ZipArchive```.
+     *
+     * @var ZipArchive
 	 */
 	protected $injectZip;
 
 	/**
 	 * A closure that returns an instance of ```SimpleXMLElement```
+     *
+     * @var SimpleXMLElement
 	 */
 	protected $injectXml;
 
 	/**
-	 * This must be supplied before any converstions will take place.
+	 * This must be supplied before any conversions will take place.
 	 */
 	protected $injectConverter;
+
+    /**
+     * Relationships (eg. images) stored in word/_rels/document.xml.rels file.
+     *
+     * @var SimpleXMLElement
+     */
+	protected $relationshipsXML;
 
 	/**
 	 * Set Container Defaults
@@ -351,6 +369,72 @@ class Backend extends Container implements BackendInterface
 		$this->documentXML = $this->xml($result);
 	}
 
+    /**
+     * Replaces an image in the Docx for the given image.
+     *
+     * @param string $originalImage   Name of the image file that should be replaced.
+     * @param string $newImage        Absolute path to the image file that replaces the original image.
+     */
+	public function replaceImage($originalImage, $newImage)
+    {
+        $this->registerXPathNamespaces();
+        $archivedFilename = $this->getImagePathInArchive($originalImage);
+
+        if(empty($archivedFilename))
+        {
+            throw new RuntimeException('Failed to find reference element!');
+        }
+
+        $newImageContent = file_get_contents($newImage);
+        $this->zip->addFromString($archivedFilename, $newImageContent);
+    }
+
+    /**
+     * Registers the required (for xpath searches) namespaces.
+     *
+     * @return void
+     */
+    private function registerXPathNamespaces()
+    {
+        $this->documentXML->registerXPathNamespace('pic', 'http://schemas.openxmlformats.org/drawingml/2006/picture');
+        $this->documentXML->registerXPathNamespace('a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+    }
+
+    /**
+     * Returns with the relative path of the given image inside the Zip archive.
+     *
+     * @param string $originalImage
+     *
+     * @return string
+     */
+    private function getImagePathInArchive($originalImage)
+    {
+        $elements = $this->documentXML->xpath("//pic:cNvPr[@name='". $originalImage ."']");
+
+        if(empty($elements))
+        {
+            return '';
+        }
+
+        // Since the XML content will be the same under every
+        // tag for a given file, it doesn't matter which one is taken.
+        $element              = $elements[0];
+        $parentElement        = $element->xpath("parent::*")[0]->xpath("parent::*")[0];
+        $referenceElement     = $parentElement->xpath('*/a:blip')[0];
+        $attributes           = $referenceElement->attributes('r', true);
+        $embedAttribute       = (string) $attributes->embed;
+        $relationshipElements = $this->relationshipsXML->xpath("//*[@Id='".$embedAttribute."']");
+
+        if(empty($relationshipElements))
+        {
+            return '';
+        }
+
+        $targetAttribute = (string) $relationshipElements[0]['Target'];
+
+        return 'word/' . $targetAttribute;
+    }
+
 	/**
 	 * Method: findRowStart
 	 * =========================================================================
@@ -457,6 +541,11 @@ class Backend extends Container implements BackendInterface
 		(
 			$this->zip->getFromName('word/document.xml')
 		);
+
+        $this->relationshipsXML = $this->xml
+        (
+            $this->zip->getFromName('word/_rels/document.xml.rels')
+        );
 
 		// Read in the footers
 		$index = 1;
