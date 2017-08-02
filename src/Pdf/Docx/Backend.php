@@ -322,7 +322,7 @@ class Backend extends Container implements BackendInterface
 
 		$rowStart = $this->findRowStart($xml, $tagPos);
 		$rowEnd = $this->findRowEnd($xml, $tagPos);
-		$xmlRow = Str::slice($xml, $rowStart, $rowEnd);
+		$xmlRow = Str::s($xml)->slice($rowStart, $rowEnd);
 
 		// Check if there's a cell spanning multiple rows.
 		if (preg_match('#<w:vMerge w:val="restart"/>#', $xmlRow))
@@ -340,7 +340,7 @@ class Backend extends Container implements BackendInterface
 
 				// If tmpXmlRow doesn't contain continue,
 				// this row is no longer part of the spanned row.
-				$tmpXmlRow = Str::slice($xml, $extraRowStart, $extraRowEnd);
+				$tmpXmlRow = Str::s($xml)->slice($extraRowStart, $extraRowEnd);
 				if
 				(
 					!preg_match('#<w:vMerge/>#', $tmpXmlRow) &&
@@ -354,17 +354,17 @@ class Backend extends Container implements BackendInterface
 				$rowEnd = $extraRowEnd;
 			}
 
-			$xmlRow = Str::slice($xml, $rowStart, $rowEnd);
+			$xmlRow = Str::s($xml)->slice($rowStart, $rowEnd);
 		}
 
-		$result = Str::slice($xml, 0, $rowStart);
+		$result = Str::s($xml)->slice(0, $rowStart);
 
 		for ($i = 1; $i <= $numberOfClones; $i++)
 		{
 			$result .= preg_replace('/\$\{(.*?)\}/', '\${\\1_' . $i . '}', $xmlRow);
 		}
 
-		$result .= Str::slice($xml, $rowEnd);
+		$result .= Str::s($xml)->slice($rowEnd)->toString();
 
 		$this->documentXML = $this->xml($result);
 	}
@@ -673,7 +673,7 @@ class Backend extends Container implements BackendInterface
 		$search = $this->normaliseStartTag($search);
 
 		// Make sure the replacement value is encoded correctly.
-		$replace = htmlspecialchars(Str::toUTF8($replace));
+		$replace = htmlspecialchars(\ForceUTF8\Encoding::toUTF8($replace));
 
 		// Do the search and replace
 		return $this->xml(preg_replace
@@ -754,13 +754,13 @@ class Backend extends Container implements BackendInterface
 		// Search for the block start and end tags
 		foreach ($xml->xpath('//w:t') as $node)
 		{
-			if (Str::contains($node, $this->normaliseStartTag($blockname)))
+			if (Str::s($node)->contains($this->normaliseStartTag($blockname)))
 			{
 				$startNode = $node;
 				continue;
 			}
 
-			if (Str::contains($node, $this->normaliseEndTag($blockname)))
+			if (Str::s($node)->contains($this->normaliseEndTag($blockname)))
 			{
 				$endNode = $node;
 				break;
