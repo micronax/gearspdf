@@ -12,6 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 use Gears\Pdf\Contracts\DocxConverter;
+use voku\helper\UTF8;
 use ZipArchive;
 use RuntimeException;
 use Gears\String\Str;
@@ -673,7 +674,7 @@ class Backend extends Container implements BackendInterface
 		$search = $this->normaliseStartTag($search);
 
 		// Make sure the replacement value is encoded correctly.
-		$replace = htmlspecialchars(\ForceUTF8\Encoding::toUTF8($replace));
+		$replace = htmlspecialchars(UTF8::to_utf8($replace));
 
 		// Do the search and replace
 		return $this->xml(preg_replace
