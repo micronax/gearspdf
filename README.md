@@ -1,4 +1,4 @@
-The Pdf Gear
+The Pdf Gear *MODIFIED*
 ================================================================================
 [![Build Status](https://travis-ci.org/phpgearbox/pdf.svg)](https://travis-ci.org/phpgearbox/pdf)
 [![Latest Stable Version](https://poser.pugx.org/gears/pdf/v/stable.svg)](https://packagist.org/packages/gears/pdf)
